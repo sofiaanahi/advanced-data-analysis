@@ -3,67 +3,258 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-def create_database_and_table():
-    # conexión a MySQL
-    conn = mysql.connector.connect(
-        host='localhost',
-        user='root',
-        password='' 
-    )
-    
-    cursor = conn.cursor()
-    
-    #Crear la base de datos 
-    cursor.execute("CREATE DATABASE IF NOT EXISTS CompanyData")
-    
-    #Seleccionar la base de datos
-    cursor.execute('USE CompanyData')
-    
-    #Crear la tabla EmployeePerfomance
-    
-    cursor.execute(""" 
-        CREATE TABLE IF NOT EXISTS EmployeePerfomance (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            employee_id INT,
-            department VARCHAR(225),
-            performance_score FLOAT,
-            years_with_company INT,
-            salary FLOAT
-        )
-    """)
-    
-    conn.commit()
-    cursor.close()
-    conn.close()
-    print("CONTECTO")
-    
-def populate_table():
-    # Lee los datos ficticios del archivo
-    df = pd.read_csv('MOCK_DATA.csv')
-    
 
-#Conectar a MySQL
+class DatabaseManager:
+    def __init__(self, host, user, password, database):
+        self.host = host
+        self.user = user
+        self.password = password
+        self.database = database
+        self.connection = None
+        
+    def create_table(self):
+        cursor = self.connection.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS EmployeePerformance (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                employee_id INT,
+                department VARCHAR(225),
+                performance_score FLOAT,
+                years_with_company INT,
+                salary FLOAT
+            )
+        """)
+        self.connection.commit()
+        cursor.close()
+        print("tabla creada")
 
-conn = mysql.connector.connect(
-    host='localhost',
-    user='root',
-    password='',
-    databasse='CompanyData'
-)
-cursor = conn.cursor()
 
-#Insertar los datos en la tabla
-
-for _, row in df.iterrows():
-    cursor.execute("""
-    INSERT INTO EmployeePerformance (employee_id, department, performance_score, years_with_company, salary)
+    def populate_table(self, data_file):
+        cursor = self.connection.cursor()
+        df = pd.read_csv(data_file)
+        for _, row in df.iterrows():
+            cursor.execute("""
+            INSERT INTO EmployeePerformance (employee_id, department, performance_score, years_with_company, salary)
             VALUES (%s, %s, %s, %s, %s)
-    """, tuple(row))
+            """, (row['employee_id'], row['department'], row['perfomance_score'], row['years_with_company'], row['salary']))
+        self.connection.commit()
+        cursor.close()
+        print("Tabla populated")
+
+
+    def close(self):
+        if self.connection:
+            self.connection.close()
+            print("database connection closed")
+        
+
+
+class DataAnaliyzer:
+    def __init__(self, db_manager):
+        self.db_manager = db_manager
+        
+    def analyze(self):
+        query = "SELECT * FROM EmployeePerformance"
+        df = pd.read_sql(query, self.db_manager.connection)
+        
+        
+        stats = df.groupby('department').agg({
+            'performance_score': ['mean', 'median', 'std'],
+            'salary': ['mean', 'median', 'std'],
+            'employee_id': 'count'
+        })
+        print(stats)
+
+        correlation_years_performance = df[['years_with_company', 'performance_score']].corr().iloc[0, 1]
+        correlation_salary_performance = df[['salary', 'performance_score']].corr().iloc[0, 1]
+        print(f"Correlación entre años en la compañía y performance_score: {correlation_years_performance}")
+        print(f"Correlación entre salario y performance_score: {correlation_salary_performance}")
+
+
+class DataVisualizer:
+    def __init__(self, db_manager):
+        self.db_manager = db_manager
     
-conn.commit()
-cursor.close()
-conn.close()
+    def visualize(self):
+        query = "SELECT * FROM EmployeePerdormance"
+        df = pd.read_sql(query, self.db_manager.connection)
+        
+        #Histograma del performance_score por departamento
+        departments = df['department'].unique()
+        for dept in departments:
+            df[df['department'] == dept]['performance_score'].hist(bins=10)
+            plt.title(f"Histogram of Performance Score - {dept}")
+            plt.xlabel("Performance Score")
+            plt.ylabel("Frequency")
+            plt.show()
+
+        # Gráfico de dispersión years_with_company vs. performance_score
+        plt.scatter(df['years_with_company'], df['performance_score'])
+        plt.title("Years with Company vs. Performance Score")
+        plt.xlabel("Years with Company")
+        plt.ylabel("Performance Score")
+        plt.show()
+        
+        
+         # Gráfico de dispersión salary vs. performance_score
+        plt.scatter(df['salary'], df['performance_score'])
+        plt.title("Salary vs. Performance Score")
+        plt.xlabel("Salary")
+        plt.ylabel("Performance Score")
+        plt.show()
+        
+
+
 
 if __name__ == "__main__":
-    create_database_and_table()
-    populate_table()
+    # Crear la rama nueva antes de empezar: dd-mm-aa-nombre-apellido-poo
+    
+    db_manager = DatabaseManager(host='localhost', user='root', password='', database='CompanyData')
+    
+    db_manager.create_table()
+    db_manager.populate_table('MOCK_DATA.csv')
+    
+    analyzer =DataAnaliyzer(db_manager)
+    analyzer.analyze()
+    
+    visualizer = DataVisualizer(db_manager)
+    visualizer.visualize()
+    
+    db_manager.close()
+
+
+
+
+
+
+
+
+
+# def create_database_and_table():
+#     # conexión a MySQL
+#     conn = mysql.connector.connect(
+#         host='localhost',
+#         user='root',
+#         password='' 
+#     )
+    
+#     cursor = conn.cursor()
+    
+#     #Crear la base de datos 
+#     cursor.execute("CREATE DATABASE IF NOT EXISTS CompanyData")
+    
+#     #Seleccionar la base de datos
+#     cursor.execute('USE CompanyData')
+    
+#     #Crear la tabla EmployeePerfomance
+    
+#     cursor.execute(""" 
+#         CREATE TABLE IF NOT EXISTS EmployeePerfomance (
+#             id INT AUTO_INCREMENT PRIMARY KEY,
+#             employee_id INT,
+#             department VARCHAR(225),
+#             performance_score FLOAT,
+#             years_with_company INT,
+#             salary FLOAT
+#         )
+#     """)
+    
+#     conn.commit()
+#     cursor.close()
+#     conn.close()
+#     print("CONECTO")
+    
+# def populate_table():
+#     conn = mysql.connector.connect(
+#         host='localhost',
+#         user='root',
+#         password='',
+#         database='CompanyData'
+#     )
+#     cursor = conn.cursor()
+    
+#     # Leer los datos ficticios del archivo CSV
+#     df = pd.read_csv('MOCK_DATA.csv')
+#     print(df.columns)  # Verificar los nombres de las columnas
+    
+#     # Insertar los datos en la tabla
+#     for _, row in df.iterrows():
+#         cursor.execute("""
+#         INSERT INTO EmployeePerformance (employee_id, department, performance_score, years_with_company, salary)
+#         VALUES (%s, %s, %s, %s, %s)
+#         """, (row['employee_id'], row['department'], row['perfomance_score'], row['years_with_company'], row['salary']))
+    
+#     conn.commit()
+#     cursor.close()
+#     conn.close()
+
+
+# def analyze_data():
+#     conn = mysql.connector.connect(
+#         host='localhost',
+#         user='root',
+#         password='',
+#         database='CompanyData'
+#     )
+    
+#     query = "SELECT * FROM EmployeePerformance"
+#     df = pd.read_sql(query, conn)
+    
+#     # Calcular estadísticas por departamento
+#     stats = df.groupby('department').agg({
+#         'performance_score': ['mean', 'median', 'std'],
+#         'salary': ['mean', 'median', 'std'],
+#         'employee_id': 'count'
+#     })
+#     print(stats)
+    
+#     # Calcular correlaciones
+#     correlation_years_performance = df[['years_with_company', 'performance_score']].corr().iloc[0, 1]
+#     correlation_salary_performance = df[['salary', 'performance_score']].corr().iloc[0, 1]
+#     print(f"Correlación entre años en la compañía y performance_score: {correlation_years_performance}")
+#     print(f"Correlación entre salario y performance_score: {correlation_salary_performance}")
+    
+#     conn.close()
+
+# def visualize_data():
+#     conn = mysql.connector.connect(
+#         host='localhost',
+#         user='root',
+#         password='',
+#         database='CompanyData'
+#     )
+    
+#     query = "SELECT * FROM EmployeePerformance"
+#     df = pd.read_sql(query, conn)
+    
+#     # Histograma del performance_score por departamento
+#     departments = df['department'].unique()
+#     for dept in departments:
+#         df[df['department'] == dept]['performance_score'].hist(bins=10)
+#         plt.title(f"Histogram of Performance Score - {dept}")
+#         plt.xlabel("Performance Score")
+#         plt.ylabel("Frequency")
+#         plt.show()
+    
+#     # Gráfico de dispersión years_with_company vs. performance_score
+#     plt.scatter(df['years_with_company'], df['performance_score'])
+#     plt.title("Years with Company vs. Performance Score")
+#     plt.xlabel("Years with Company")
+#     plt.ylabel("Performance Score")
+#     plt.show()
+    
+#     # Gráfico de dispersión salary vs. performance_score
+#     plt.scatter(df['salary'], df['performance_score'])
+#     plt.title("Salary vs. Performance Score")
+#     plt.xlabel("Salary")
+#     plt.ylabel("Performance Score")
+#     plt.show()
+    
+#     conn.close()
+
+
+# if __name__ == "__main__":
+#     create_database_and_table()
+#     populate_table()
+#     analyze_data()
+#     visualize_data()
