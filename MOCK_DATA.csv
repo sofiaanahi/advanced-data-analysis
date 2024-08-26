@@ -1,4 +1,4 @@
-id,employee_id,department,perfomance_score,years_with_company,salary
+id,employee_id,department,performance_score,years_with_company,salary
 1,98,nulla dapibus,23,1,86
 2,71,semper,72,2,35
 3,49,felis ut,79,3,75
